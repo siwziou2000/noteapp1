@@ -18,7 +18,7 @@ CREATE TABLE `canvases` (
   `share_token` varchar(32) DEFAULT NULL,
   `token_expires_at` datetime DEFAULT NULL,
   `token_access_type` enum('view','edit') DEFAULT 'view'
-)
+);
 
 
 CREATE TABLE `canvas_collaborators` (
@@ -33,14 +33,14 @@ CREATE TABLE `canvas_collaborators` (
   `owner_name` varchar(100) DEFAULT NULL,
   `can_edit_notes` tinyint(1) DEFAULT 1,
   `can_delete_notes` tinyint(1) DEFAULT 0
-)
+);
 
 CREATE TABLE `drawings` (
   `id` int(11) NOT NULL,
   `image` longblob NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) 
+);
 
 
 CREATE TABLE `groups` (
@@ -50,7 +50,7 @@ CREATE TABLE `groups` (
   `user_id` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
-)
+);
 
 CREATE TABLE `group_members` (
   `group_member_id` int(11) NOT NULL,
@@ -58,7 +58,7 @@ CREATE TABLE `group_members` (
   `user_id` int(11) NOT NULL,
   `role` enum('viewer','editor','admin','owner') DEFAULT 'viewer',
   `joined_at` timestamp NOT NULL DEFAULT current_timestamp()
-)
+);
 
 CREATE TABLE `group_tasks` (
   `id` int(11) NOT NULL,
@@ -66,7 +66,7 @@ CREATE TABLE `group_tasks` (
   `task_id` int(11) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `description` varchar(255) NOT NULL
-)
+);
 
 CREATE TABLE `media` (
   `id` int(11) NOT NULL,
@@ -84,7 +84,7 @@ CREATE TABLE `media` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `locked_by` int(11) DEFAULT NULL,
   `locked_at` datetime DEFAULT NULL
-)
+);
 
 
 CREATE TABLE `notes` (
@@ -116,7 +116,7 @@ CREATE TABLE `notes` (
   `locked_by` int(11) DEFAULT NULL,
   `locked_at` datetime DEFAULT NULL,
   `locked_by_name` varchar(255) DEFAULT NULL
-)
+);
 
 CREATE TABLE `password_resets` (
   `email` varchar(255) NOT NULL,
@@ -125,7 +125,7 @@ CREATE TABLE `password_resets` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `expires_at` timestamp NOT NULL DEFAULT (current_timestamp() + interval 1 hour),
   `reset_id` int(11) NOT NULL
-)
+);
 
 
 
@@ -138,7 +138,7 @@ CREATE TABLE `tasks` (
   `user_id` int(11) DEFAULT NULL,
   `description` varchar(255) NOT NULL,
   `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
-)
+);
 
 CREATE TABLE `users` (
   `user_id` int(11) NOT NULL,
@@ -157,7 +157,7 @@ CREATE TABLE `users` (
   `color` varchar(7) DEFAULT '#ff0000',
   `notifications_pref` varchar(255) DEFAULT 'all',
   `role_id` int(11) DEFAULT 1
-)
+);
 
 CREATE TABLE `user_cursors` (
   `user_id` int(11) NOT NULL,
@@ -166,7 +166,7 @@ CREATE TABLE `user_cursors` (
   `y` int(11) NOT NULL,
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `last_active` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
-)
+);
 
 CREATE TABLE `user_preferences` (
   `user_id` int(11) NOT NULL,
@@ -174,7 +174,7 @@ CREATE TABLE `user_preferences` (
   `theme` varchar(10) DEFAULT 'light',
   `notifications` tinyint(1) DEFAULT 1,
   `timezone` varchar(50) DEFAULT 'UTC'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+); 
 
 
 
