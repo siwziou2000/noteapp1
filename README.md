@@ -1,6 +1,7 @@
 noteapp εκπαιδευτικη εφαρμογη
 διπλωματικη εργασια για ενα συνεργατικο συστημα σημειωσεων 
-τεχνολογιες php javascipt mysql HTML5 ,CSS3 ,botstrap,jqury 3.6 ,json,ajax 
+τεχνολογιες HTML5, CSS3 ,bootstap5,JAVASCIPT ,PHP , JQUERY 3.6 , JSON, AJAX
+
 εγκατασταση σε τoπικο διακομιστη xampp
 
 τοποθετηση σε φακελο htdocs ,ρυθμισης βασης δεδομενωνν
