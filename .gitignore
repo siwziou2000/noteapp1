@@ -1,0 +1,8 @@
+/vendor/
+/api/canva/uploads
+database.php
+.env
+.vscode/
+/idea
+
+
