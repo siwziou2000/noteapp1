@@ -388,6 +388,7 @@ function displayAllUsers() {
                                     <option value="student">Φοιτητής</option>
                                     <option value="teacher">Καθηγητής</option>
                                     <option value="admin">Διαχειριστής</option>
+                                    <option value="quest"> Επισκεπτης</option>
                                 </select>
                             </div>
                         </div>
