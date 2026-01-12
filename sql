@@ -34,6 +34,13 @@ CREATE TABLE `canvas_collaborators` (
   `can_edit_notes` tinyint(1) DEFAULT 1,
   `can_delete_notes` tinyint(1) DEFAULT 0
 );
+CREATE TABLE `notifications` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `message` text NOT NULL,
+  `is_read` tinyint(1) DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE `drawings` (
   `id` int(11) NOT NULL,
