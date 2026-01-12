@@ -40,7 +40,7 @@ try {
     //to rolo toy xristi kai to admin exei prostasi apo exo sto systima kai to xristi apo ti vasi omos
     $stmtUserRole = $pdo->prepare("SELECT role FROM users WHERE user_id = ?");
     $stmtUserRole->execute([$user_id]);
-    $stmtUserRole = $stmtUserRole->fetchColumn();
+    $CurrentUserRole = $stmtUserRole->fetchColumn();
 
     $stmtCheck = $pdo->prepare("
        SELECT c.*,
