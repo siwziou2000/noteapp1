@@ -16,8 +16,8 @@ if(!isset($_SESSION['user_id']) && !isset($_GET['token'])){
 }
 //vasikes metavolites gia to systima mas
 $user_id = (int)$_SESSION['user_id'];
-$canva_id = isset ($_GET['id'])? (int)$_GET['id'] : null;
-$group_id = isset($_GET['group_id']) ?(int)$_GET['group_id'] : null;
+$canva_id = isset ($_GET['id']) ? (int)$_GET['id'] : null;
+$group_id = isset($_GET['group_id']) ? (int)$_GET['group_id'] : null;
 
 /// token gia tin koinopiisi toy pinaka
 $share_token = isset($_GET['token']) ? $_GET['token'] : null;
