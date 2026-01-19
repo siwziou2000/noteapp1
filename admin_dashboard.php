@@ -46,7 +46,10 @@ $username = isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username'
     <h2>Διαχείριση Χρηστών</h2>
     <ul>
         <li><a href="users.php" class="btn btn-info btn-sm">Διαχείριση Χρηστών</a></li>
-       
+       <li><a href="users.php" class="btn btn-info btn-sm">Διαχείριση Χρηστών</a></li>
+       <a href="admin_approve.php" class="btn btn-warning btn-sm">
+            <i class="fas fa-user-clock"></i> Εγκρίσεις Νέων Χρηστών (Guest)
+        </a>
         
         <li><a href="change_role.php" class="btn btn-danger btn-sm">Αλλαγή Ρόλου Χρήστη</a></li>
     </ul>
