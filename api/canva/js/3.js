@@ -3,6 +3,9 @@ class NoteManager {
         this.currentNoteId = null;// id  trxpntos xristi
         this.canvasId = document.querySelector('meta[name="current-canva-id"]').content;//id kamva pinaka
         this.userId = document.querySelector('meta[name="current-user-id"]').content;//id xristi
+          
+
+        this.canEdit = false; // Προεπιλογή
         this.lastUpdateTime = Date.now();// last time enimerosi
         
         // metavlites  gia drag drop  metakinisi antikeimenon
@@ -11,6 +14,7 @@ class NoteManager {
         this.dragStartY = 0;
         this.currentNoteElement = null;
 
+        
         // metavlites gia epejerasia 
         this.editQuill = null; /// quiill editor
         this.originalNoteValues = {};// arxitis times simeiosis
@@ -18,6 +22,10 @@ class NoteManager {
 
         // arxikopoisi leitoyrgion
         this.initEventListeners();//event listerners
+
+        const canEditMeta = document.querySelector('meta[name="can-edit"]');
+    this.canEdit = canEditMeta && canEditMeta.content === 'true';
+
         this.initDraggableNotes();// metakinis simeoiseon
         this.startPolling(); // peridiosijos elegxos simeioseon 
         this.trackCursor(); /// parakoloythisi cursor xristi
@@ -450,169 +458,168 @@ class NoteManager {
 }
 
     // Αρχικοποίηση event listeners
-    initEventListeners()
-    {
-        // Αποθήκευση σημείωσης
-        document.getElementById('saveNote').addEventListener('click', () => this.saveNote());
+    initEventListeners() {
+    const userRole = document.body.dataset.userRole;
+    const isViewer = (userRole === 'viewer');
+
+    // 1. Αποθήκευση σημείωσης
+    document.getElementById('saveNote').addEventListener('click', () => {
+        if (isViewer) return;
+        this.saveNote();
+    });
+
+    // 2. Κεντρικός Listener για το notesBoard (Edit, Delete, Locking)
+    document.getElementById('notesBoard').addEventListener('click', async (e) => {
         
-        // Επεξεργασία σημείωσης
-        document.getElementById('notesBoard').addEventListener('click', (e) => {
-            
-            document.getElementById('notesBoard').addEventListener('click', (e) => {
+        // --- ΕΠΕΞΕΡΓΑΣΙΑ ΣΗΜΕΙΩΣΗΣ ---
         const editBtn = e.target.closest('.edit-btn');
         if (editBtn) {
             e.stopPropagation();
+            if (isViewer) return;
             const noteElement = editBtn.closest('.note-container');
-            this.editNote(noteElement); // Κάλεσε τη συνάρτηση που ανοίγει το Modal
+            this.editNote(noteElement);
+            return;
         }
-        
-    });
-        });
 
-        document.getElementById('sidebarToggle').addEventListener('click', function() {
-            document.querySelector('.sidebar').classList.toggle('active');
-        });
-
-        document.getElementById('notesBoard').addEventListener('click', async (e) => {
-            
-
-
-         const el = e.target.closest('.note-container');
-         if (!el) return;
-    
-         const noteId = el.dataset.noteId;
-         const userRole = document.body.dataset.userRole; // rolo apo to 11.php metatagas
-         let url = 'lock_note.php';
-         if (userRole === 'admin'){
-               url += '?admin=1';//admin
-            
-         }
-         try
-         {
-            
-        const response = await fetch(url, 
-            {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ note_id: noteId })
-        });
-        
-        const result = await response.json();
-        
-        // to 423 code simineia toi i php den to anagaotisei to systima os admin      
-       
-        if (response.status === 423) {
-            Swal.fire({
-                icon: 'info',
-                title: 'Κλειδωμένο',
-                text: `Η σημείωση είναι κλειδωμένη από τον χρήστη ${result.locked_by_name}`
-            });
+        // --- ΔΙΑΓΡΑΦΗ ΣΗΜΕΙΩΣΗΣ ---
+        const deleteBtn = e.target.closest('.delete-btn');
+        if (deleteBtn) {
+            e.stopPropagation();
+            if (isViewer) return;
+            const noteElement = deleteBtn.closest('.note-container');
+            this.deleteNote(noteElement);
+            return;
         }
-        
-        
-    } catch (error) {
-        console.error('Σφάλμα:', error);
-    }
-});
-        
-    document.getElementById('notesBoard').addEventListener('click', async (e) => {
-    const mediaEl = e.target.closest('.media-item');
-    if (!mediaEl) return;
-    
-    const mediaId = mediaEl.dataset.id;
-    const canvaId = this.canvasId;
-    const userId = this.userId;
-    
-    // enimerosi apotsiki     admin=1 αν ο χρήστης είναι admin
-    const isAdminQuery = document.body.dataset.userRole === 'admin' ? '?admin=1' : '';
-    
-    try {
-        const response = await fetch(`lock_media.php${isAdminQuery}`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
-            },
-            body: JSON.stringify({ 
-                media_id: mediaId, 
-                canva_id: canvaId,
-                user_id: userId
-            })
-        });
-        const result = await response.json();
-        
-        // adn to systima mas dei oti anagnarozei to admini to backend tha epistrecei success trus akoma einia kleidoemenop
-        
-        if (result.error === 'Κλειδωμένο') {
-            Swal.fire({
+
+        // --- ΔΙΑΓΡΑΦΗ ΠΟΛΥΜΕΣΟΥ (Media) ---
+        const deleteMediaBtn = e.target.closest('.delete-media');
+        if (deleteMediaBtn) {
+            e.stopPropagation();
+            if (isViewer) return;
+            
+            const mediaId = deleteMediaBtn.dataset.id;
+            const mediaElement = deleteMediaBtn.closest('.media-item');
+
+            const confirmed = await Swal.fire({
+                title: 'Διαγραφή Πολυμέσου',
+                text: 'Θέλετε να διαγράψετε αυτό το πολυμέσο;',
                 icon: 'warning',
-                title: 'Κλειδωμένο',
-                text: `Αυτό το πολυμέσο είναι κλειδωμένο από τον χρήστη ${result.locked_by_name}`,
-                timer: 2000
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'Διαγραφή'
             });
-        } else if (result.success) {
-            console.log("Media access granted (Admin or Lock acquired)");
-            mediaEl.dataset.lockedBy = userId;
-            if (!mediaEl.querySelector('.lock-indicator')) {
-                const lockEl = document.createElement('div');
-                lockEl.className = 'lock-indicator';
-                //an enia admin kai to kledieomna itna alloy mporoyme na to deijoeyme
-                
-                lockEl.innerHTML = `<i class="bi bi-lock"></i> ${document.body.dataset.userRole === 'admin' ? 'Admin Access' : 'Κλειδωμένο από εσάς'}`;
-                mediaEl.prepend(lockEl);
+
+            if (confirmed.isConfirmed) {
+                try {
+                    const response = await fetch(`delete_media.php?id=${mediaId}`, {
+                        method: 'DELETE',
+                        headers: { 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content }
+                    });
+                    if (response.ok) {
+                        mediaElement.remove();
+                        Swal.fire('Επιτυχία!', 'Το πολυμέσο διαγράφηκε.', 'success');
+                    }
+                } catch (error) { console.error('Σφάλμα διαγραφής media:', error); }
+            }
+            return;
+        }
+
+        // --- ΛΟΓΙΚΗ LOCKING (Για Notes & Media) ---
+        if (!isViewer) {
+            const noteEl = e.target.closest('.note-container');
+            const mediaEl = e.target.closest('.media-item');
+
+            if (noteEl) {
+                // Η λογική σου για lock_note.php
+                const noteId = noteEl.dataset.noteId;
+                let url = 'lock_note.php' + (userRole === 'admin' ? '?admin=1' : '');
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ note_id: noteId })
+                    });
+                    const result = await response.json();
+                    if (response.status === 423) {
+                        Swal.fire({ 
+                            icon: 'info', 
+                            title: 'Κλειδωμένο', 
+                            text: `Η σημείωση είναι κλειδωμένη από τον χρήστη ${result.locked_by_name}` 
+                        });
+                    }
+                } catch (error) { console.error('Σφάλμα κλειδώματος σημείωσης:', error); }
+            } else if (mediaEl) {
+                // Η λογική σου για lock_media.php (με CSRF και Admin query)
+                const mediaId = mediaEl.dataset.id;
+                const isAdminQuery = userRole === 'admin' ? '?admin=1' : '';
+                try {
+                    const response = await fetch(`lock_media.php${isAdminQuery}`, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content 
+                        },
+                        body: JSON.stringify({ 
+                            media_id: mediaId, 
+                            canva_id: this.canvasId, 
+                            user_id: this.userId 
+                        })
+                    });
+                    const result = await response.json();
+                    if (result.error === 'Κλειδωμένο') {
+                        Swal.fire({ icon: 'warning', title: 'Κλειδωμένο', text: `Από τον χρήστη ${result.locked_by_name}`, timer: 2000 });
+                    } else if (result.success) {
+                        mediaEl.dataset.lockedBy = this.userId;
+                        if (!mediaEl.querySelector('.lock-indicator')) {
+                            const lockEl = document.createElement('div');
+                            lockEl.className = 'lock-indicator';
+                            lockEl.innerHTML = `<i class="bi bi-lock"></i> ${userRole === 'admin' ? 'Admin Access' : 'Κλειδωμένο από εσάς'}`;
+                            mediaEl.prepend(lockEl);
+                        }
+                    }
+                } catch (error) { console.error('Σφάλμα κλειδώματος media:', error); }
             }
         }
-    } catch (error) {
-        console.error('Σφάλμα κλειδώματος:', error);
+    });
+
+    // 3. SIDEBAR TOGGLE
+    document.getElementById('sidebarToggle').addEventListener('click', function() {
+        document.querySelector('.sidebar').classList.toggle('active');
+    });
+
+    // 4. DARK MODE (Restore & Change)
+    const darkModeInput = document.querySelector('.switch input');
+    darkModeInput.addEventListener('change', (e) => {
+        document.body.classList.toggle('dark', e.target.checked);
+        localStorage.setItem('darkMode', e.target.checked);
+    });
+    if (localStorage.getItem('darkMode') === 'true') {
+        document.body.classList.add('dark');
+        darkModeInput.checked = true;
     }
-});
 
-        //delete note
-        document.getElementById('notesBoard').addEventListener('click', (e) => {
-            if (e.target.closest('.delete-btn')) {
-                const noteElement = e.target.closest('.note-container');
-                this.deleteNote(noteElement);
-            }
+    // 5. EXPORTS (Image, PDF, Text, Word)
+    document.getElementById("exportAsImage").addEventListener("click", () => this.exportAsImage());
+    document.getElementById("exportAsPDF").addEventListener("click", () => this.exportAsPDF());
+    document.getElementById("exportAsText").addEventListener("click", () => this.exportAsText());
+    document.getElementById("exportWordBtn").addEventListener("click", () => this.exportAsWord());
+
+    // 6. ZOOM
+    document.getElementById("zoomIn").addEventListener("click", () => this.zoomIn());
+    document.getElementById("zoomOut").addEventListener("click", () => this.zoomOut());
+
+    // 7. CANVAS MANAGEMENT (Create, Search, Rename, Delete)
+    document.getElementById('createCanvasBtn').addEventListener('click', () => {
+        if (!isViewer) this.handleCreateCanvas(); // Υποθέτοντας ότι έχεις αυτή τη μέθοδο
+    });
+
+    document.getElementById('searchCanvases').addEventListener('input', (e) => {
+        const term = e.target.value.toLowerCase();
+        document.querySelectorAll('#canvasesList li').forEach(li => {
+            li.style.display = li.textContent.toLowerCase().includes(term) ? 'block' : 'none';
         });
-
-        // noteeditform
-        document.getElementById('editNoteForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            await this.updateNote(e);
-        });
-
-        // Dark mode
-        document.querySelector('.switch input').addEventListener('change', function(e) {
-            document.body.classList.toggle('dark', e.target.checked);
-            localStorage.setItem('darkMode', e.target.checked);
-        });
-
-        // Restore dark mode on load
-        if (localStorage.getItem('darkMode') === 'true') {
-            document.body.classList.add('dark');
-            document.querySelector('.switch input').checked = true;
-        }
-
-        // export
-        document.getElementById("exportAsImage").addEventListener("click", this.exportAsImage);
-        document.getElementById("exportAsPDF").addEventListener("click", this.exportAsPDF);
-        document.getElementById("exportAsText").addEventListener("click", this.exportAsText);
-        document.getElementById("exportWordBtn").addEventListener("click", this.exportAsWord);
-
-        // Zoom
-        document.getElementById("zoomIn").addEventListener("click", this.zoomIn);
-        document.getElementById("zoomOut").addEventListener("click", this.zoomOut);
-
-        // create new canvases
-        document.getElementById('createCanvasBtn').addEventListener('click', () => this.createCanvas());
-
-        // search pinakons
-        document.getElementById('searchCanvases').addEventListener('input', this.searchCanvases);
-
-        // Event listeners gia create pinaka delete ka
-        // 
-      
-        document.getElementById('createCanvasBtn').addEventListener('click', async () => {
+    });
+ document.getElementById('createCanvasBtn').addEventListener('click', async () => {
             const canvasName = document.getElementById('canvasName').value.trim();
             const canvasCategory = document.getElementById('canvasCategory').value;
             const canvasAccess = document.getElementById('canvasAccess').value;
@@ -663,8 +670,6 @@ class NoteManager {
             }
         });
         
-        
-        
         document.getElementById('searchCanvases').addEventListener('input', (e) => {
             const term = e.target.value.toLowerCase();
             document.querySelectorAll('#canvasesList li').forEach(li => {
@@ -695,63 +700,28 @@ class NoteManager {
                 }
             });
         });
-
-        document.querySelectorAll('.edit-name').forEach(button => {
-            button.addEventListener('click', () => {
-                const li = button.closest('li');
-                const link = li.querySelector('.canvas-link');
-                const originalText = link.textContent;
-                const canvasId = button.dataset.id;
-
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.className = 'form-control form-control-sm';
-                input.value = originalText;
-
-                link.replaceWith(input);
-                input.focus();
-
-                input.addEventListener('blur', async () => {
-                    const newName = input.value.trim();
-
-                    if (newName && newName !== originalText) {
-                        const response = await fetch(`rename_canva.php?id=${canvasId}&name=${encodeURIComponent(newName)}`);
-                        if (response.ok) {
-                            const newLink = document.createElement('a');
-                            newLink.href = `11.php?id=${canvasId}`;
-                            newLink.textContent = newName;
-                            newLink.className = 'canvas-link me-2 flex-grow-1';
-                            input.replaceWith(newLink);
-                        } else {
-                            alert('Η αλλαγή ονόματος απέτυχε.');
-                            input.replaceWith(link);
-                        }
-                    } else {
-                        input.replaceWith(link);
-                    }
-                });
-
-                input.addEventListener('keydown', (event) => {
-                    if (event.key === 'Enter') {
-                        input.blur();
-                    }
-                });
-            });
+    // Rename Canvas
+    document.querySelectorAll('.edit-name').forEach(button => {
+        button.addEventListener('click', () => {
+            if (!isViewer) this.handleRenameCanvas(button); // Η λογική Rename που είχες
         });
+    });
 
-    document.getElementById('addCollaboratorForm').addEventListener('submit', async (e) => {
+   document.getElementById('addCollaboratorForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const form = e.target;
     const formData = new FormData(form);
     const canvaId = document.querySelector('meta[name="current-canva-id"]').content;
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     
     try {
+        // Στέλνουμε το αίτημα στο ΞΕΧΩΡΙΣΤΟ αρχείο add_collaborator.php
         const response = await fetch('add_collaborator.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
+                'X-CSRF-Token': csrfToken
             },
             body: JSON.stringify({
                 canva_id: canvaId,
@@ -762,47 +732,19 @@ class NoteManager {
         
         const result = await response.json();
         
-        if (!response.ok) {
-          
-            if (result.error_code === 'already_exists') {
-           
-                Swal.fire({
-                    icon: 'info',  
-                    title: 'Πληροφορία',
-                    text: result.error || 'Ο χρήστης είναι ήδη συνεργάτης σε αυτόν τον πίνακα'
-                });
-                return; 
-            } else {
-                throw new Error(result.error || 'Αποτυχία προσθήκης συνεργάτη');
-            }
+        if (!response.ok || !result.success) {
+            throw new Error(result.error || 'Αποτυχία προσθήκης');
         }
         
-        if (!result.success) {
-            throw new Error(result.error || 'Αποτυχία προσθήκης συνεργάτη');
-        }
-        
-        Swal.fire({
-            icon: 'success',
-            title: 'Επιτυχία!',
-            text: 'Ο συνεργάτης προστέθηκε με επιτυχία.',
-            timer: 2000
-        });
-        
-        form.reset();
-        $('#addCollaboratorModal').modal('hide');
-        window.location.reload();
+        Swal.fire({ icon: 'success', title: 'Επιτυχία!', text: 'Ο συνεργάτης προστέθηκε.' });
+        setTimeout(() => window.location.reload(), 1500);
+
     } catch (error) {
-     
-        Swal.fire({
-            icon: 'error',
-            title: 'Σφάλμα',
-            text: error.message
-        });
-        console.error('Σφάλμα προσθήκης συνεργάτη:', error);
+        Swal.fire({ icon: 'error', title: 'Σφάλμα', text: error.message });
     }
 });
-
-        document.querySelectorAll('.remove-collaborator').forEach(btn => {
+    
+    document.querySelectorAll('.remove-collaborator').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const userId = btn.dataset.userId;
                 const canvaId = document.querySelector('meta[name="current-canva-id"]').content;
@@ -854,38 +796,12 @@ class NoteManager {
             });
         });
 
-        // delete media
-        document.addEventListener('click', async (e) => {
-            if (e.target.closest('.delete-media')) {
-                const mediaId = e.target.closest('.delete-media').dataset.id;
-
-                const confirmed = await Swal.fire({
-                    title: 'Διαγραφή Πολυμέσου',
-                    text: 'Θέλετε να διαγράψετε αυτό το πολυμέσο;',
-                    icon: 'warning',
-                    showCancelButton: true
-                });
-
-                if (confirmed.isConfirmed) {
-                    try {
-                        const response = await fetch(`delete_media.php?id=${mediaId}`, {
-                            method: 'DELETE',
-                            headers: {
-                                'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
-                            }
-                        });
-                        
-                        if (response.ok) {
-                            e.target.closest('.media-item').remove();
-                            Swal.fire('Επιτυχία!', 'Το πολυμέσο διαγράφηκε.', 'success');
-                        }
-                    } catch (error) {
-                        Swal.fire('Σφάλμα', 'Η διαγραφή απέτυχε.', 'error');
-                    }
-                }
-            }
-        });
-    }
+    // 9. EDIT FORM SUBMIT
+    document.getElementById('editNoteForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!isViewer) await this.updateNote(e);
+    });
+}
     // synartis gia lockarimsi tis simeioseis
     
 addNoteLockIndicator(noteElement, userId, lockedByName) {
@@ -1087,6 +1003,10 @@ addNoteLockIndicator(noteElement, userId, lockedByName) {
 
     // Drag & drop functionality metakinis simeiooseon 
     initDraggableNotes() {
+        if (!this.canEdit) {
+        console.log("Dragging disabled for viewer");
+        return; 
+    }
         interact('.note-container').draggable({
             inertia: true,
             modifiers: [
@@ -1353,6 +1273,7 @@ addNoteLockIndicator(noteElement, userId, lockedByName) {
 
         this.currentCanvasId = null; // id trexontos kamva pinaka
         this.currentUserId = null; // id trexontos xristi
+        this.canEdit = false;
 
         // Real-time properties
         this.lastUpdateTime = Math.floor(Date.now() / 1000);
@@ -1555,58 +1476,6 @@ handleCursorUpdates(cursors) {
 
 //functions emfanisis media meta to add ton media
 
-createMediaElement(media) {
-    const div = document.createElement('div');
-    div.className = 'draggable media-item';
-    div.dataset.id = media.id;
-    div.dataset.type = media.type;
-    div.style.cssText = `position: absolute; left: ${media.position_x}px; top: ${media.position_y}px; width: 250px; border: 1px solid #ddd; border-radius: 8px; background: white; padding: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: move; z-index: 100;`;
-
-    const displayName = media.original_filename || "Αρχείο";
-    let src = media.data;
-    const isYouTube = src && (src.includes('youtube.com') || src.includes('youtu.be'));
-    const type = media.type ? media.type.toLowerCase() : '';
-
-    if (src && !isYouTube && !src.startsWith('http') && !src.startsWith('/noteapp')) {
-        src = '/noteapp/api/canva/' + src;
-    }
-
-    let contentHtml = '';
-    //eplogi perixeomeno basiei typis
-   
-    if (type.includes('image')) {
-        contentHtml = `<img src="${src}" class="img-fluid rounded border sync-media-img" />`;
-    } else if (isYouTube) {
-        let vId = src.includes('v=') ? src.split('v=')[1].split('&')[0] : src.split('/').pop();
-        contentHtml = `<div class="ratio ratio-16x9 mb-2"><iframe src="https://www.youtube.com/embed/${vId}" class="sync-media-youtube" frameborder="0" allowfullscreen></iframe></div>`;
-    } else if (type.includes('video')) {
-        contentHtml = `<video controls class="w-100 rounded border sync-media-video"><source src="${src}" type="${media.type}"></video>`;
-    } else if (type === 'text' || type === 'note') {
-        contentHtml = `<div class="note-box p-2 bg-warning bg-opacity-10 border rounded"><p class="small mb-0 sync-media-content" style="white-space: pre-wrap;">${media.content || ''}</p></div>`;
-    } else {
-        let icon = 'bi-file-earmark';
-        if (displayName.endsWith('.pdf')) icon = 'bi-file-earmark-pdf text-danger';
-        else if (displayName.endsWith('.doc') || displayName.endsWith('.docx')) icon = 'bi-file-earmark-word text-primary';
-        contentHtml = `<div class="file-box p-3 bg-light border rounded text-center"><i class="bi ${icon}" style="font-size: 2.5rem;"></i></div>`;
-    }
-
-    div.innerHTML = `
-        <div class="media-actions mb-2 d-flex justify-content-between">
-            <button class="btn btn-xs btn-outline-primary edit-media" data-id="${media.id}"><i class="bi bi-pencil"></i></button>
-            <button class="btn btn-xs btn-outline-danger delete-media" data-id="${media.id}"><i class="bi bi-trash"></i></button>
-        </div>
-        <div class="media-body-sync">
-            ${contentHtml}
-            <p class="small mt-2 mb-1 fw-bold sync-media-title text-truncate">${displayName}</p>
-            <div class="sync-media-comments mt-2 p-1 border-top" style="font-size: 0.75rem; color: #555; font-style: italic;">
-                ${media.description ? `<i class="bi bi-chat-left-text"></i> <span>${media.description}</span>` : ''}
-            </div>
-        </div>
-        ${!isYouTube ? `<a href="/noteapp/api/canva/download.php?id=${media.id}" class="btn btn-xs btn-outline-dark w-100 mt-2">Λήψη</a>` : ''}
-    `;
-    return div;
-}
-
 //enimerosi to lockarismos toy media
     updateMediaLockStatus(mediaElement, mediaData) {
         if (mediaData.locked_by) {
@@ -1627,19 +1496,21 @@ createMediaElement(media) {
     }
     //fucntis media add
 
-    addMediaToCanvas(mediaData) {
+    
+        addMediaToCanvas(mediaData) {
     try {
-        // Αν είναι σημείωση, αγνόησε
-        if (mediaData.type === 'rich_note' || mediaData.type === 'note' || mediaData.note_id) {
-            console.log('Note ignored by MediaManager');
-            return;
-        }
+        if (mediaData.type === 'rich_note' || mediaData.type === 'note' || mediaData.note_id) return;
         
         const mediaElement = this.createMediaElement(mediaData);
         if (mediaElement) {
             const canvas = this.getCanvasContainer();
             canvas.appendChild(mediaElement);
-            this.initDraggableForElement(mediaElement);
+            
+            // Ενεργοποιούμε το drag ΜΟΝΟ αν επιτρέπεται
+            const canEdit = document.querySelector('meta[name="can-edit"]')?.content === 'true';
+            if (canEdit) {
+                this.initDraggableForElement(mediaElement);
+            }
         }
     } catch (error) {
         console.error('Error adding media to canvas:', error);
@@ -1840,22 +1711,31 @@ handleMediaUpdates(updatedMedia) {
     });
 }
 
-
-
 createMediaElement(media) {
+    const canEditMeta = document.querySelector('meta[name="can-edit"]');
+    const canEdit = canEditMeta && canEditMeta.content === 'true';
+
     const div = document.createElement('div');
-    // Προσθήκη κλάσης αν είναι κλειδωμένο
     div.className = `draggable media-item ${media.locked_by ? 'locked-item' : ''}`;
     div.dataset.id = media.id;
     div.dataset.type = media.type;
-
     div.dataset.src = media.data; 
-    // ---------------------
-    div.style.cssText = `position: absolute; left: ${media.position_x}px; top: ${media.position_y}px; width: 260px; border: 1px solid #ddd; border-radius: 10px; background: white; padding: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: move; z-index: 100;`;
+
+    // Cursor move μόνο αν canEdit, αλλιώς default
+    const cursorType = canEdit ? 'move' : 'default';
+    div.style.cssText = `position: absolute; left: ${media.position_x}px; top: ${media.position_y}px; width: 260px; border: 1px solid #ddd; border-radius: 10px; background: white; padding: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 100; cursor: ${cursorType};`;
+
+    // 1. Εδώ υπολογίζουμε τα κουμπιά - Αν canEdit είναι false, το actionsHtml θα είναι άδειο κείμενο
+    let actionsHtml = '';
+    if (canEdit) {
+        actionsHtml = `
+            <div class="media-actions mb-2 d-flex justify-content-between">
+                <button class="btn btn-xs btn-outline-primary edit-media" data-id="${media.id}"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-xs btn-outline-danger delete-media" data-id="${media.id}"><i class="bi bi-trash"></i></button>
+            </div>`;
+    }
 
     const displayName = media.original_filename || "Αρχείο";
-   
-   
     let src = media.data;
     const isYouTube = src && (src.includes('youtube.com') || src.includes('youtu.be'));
     const type = media.type ? media.type.toLowerCase() : '';
@@ -1864,76 +1744,59 @@ createMediaElement(media) {
     if (src && !isYouTube && !src.startsWith('http') && !src.startsWith('/noteapp')) {
         src = '/noteapp/api/canva/' + src;
     }
-    
 
     let contentHtml = '';
     if (isYouTube) {
         const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
         const match = src.match(regExp);
         const vId = (match && match[2].length === 11) ? match[2] : null;
-        
-        contentHtml = `<div class="ratio ratio-16x9 mb-2">
-            <iframe src="https://www.youtube.com/embed/${vId}" class="sync-media-youtube" frameborder="0" allowfullscreen></iframe>
-        </div>`;
-    }
-
-    // ΚΥΡΙΩΣ ΠΕΡΙΕΧΟΜΕΝΟ ΑΝΑ ΤΥΠΟ
-    if (type.includes('image')) {
-        contentHtml = `<img src="${src}" class="img-fluid rounded border sync-media-img" />`;
-    } 
-    else if (isYouTube) {
-        let vId = src.includes('v=') ? src.split('v=')[1].split('&')[0] : src.split('/').pop();
         contentHtml = `
             <div class="ratio ratio-16x9 mb-2">
                 <iframe src="https://www.youtube.com/embed/${vId}" class="sync-media-youtube" frameborder="0" allowfullscreen></iframe>
-            </div>
-            <a href="${src}" target="_blank" class="btn btn-sm btn-danger w-100 mb-2">
-                <i class="bi bi-youtube"></i> Προβολή στο YouTube
-            </a>`;
-    } 
-    else if (isLocalVideo) {
+            </div>`;
+    } else if (type.includes('image')) {
+        contentHtml = `<img src="${src}" class="img-fluid rounded border sync-media-img" />`;
+    } else if (isLocalVideo) {
         contentHtml = `<video controls class="w-100 rounded border sync-media-video"><source src="${src}" type="video/mp4"></video>`;
-    } 
-    else if (type === 'text' || type === 'note' || type === 'rich_note') {
+    } else if (type === 'text' || type === 'note' || type === 'rich_note') {
         contentHtml = `<div class="note-box p-2 bg-warning bg-opacity-10 border rounded border-warning">
                         <p class="small mb-0 sync-media-content" style="white-space: pre-wrap; min-height: 50px;">${media.content || ''}</p>
                        </div>`;
-    } 
-    else {
+    } else {
         let icon = displayName.endsWith('.pdf') ? 'bi-file-earmark-pdf text-danger' : 'bi-file-earmark-word text-primary';
         contentHtml = `<div class="file-box p-3 bg-light border rounded text-center"><i class="bi ${icon}" style="font-size: 2.5rem;"></i></div>`;
     }
 
-    // LOCK INDICATOR (Εμφανίζεται μόνο αν είναι κλειδωμένο)
     const lockHtml = media.locked_by ? 
         `<div class="lock-status-badge badge bg-danger w-100 mb-2">
             <i class="bi bi-person-fill-lock"></i> ${media.locked_by_name || 'Κλειδωμένο'}
          </div>` : '';
 
+    // 2. Η ΔΙΟΡΘΩΣΗ: Βάζουμε τη μεταβλητή ${actionsHtml} αντί για τα στατικά κουμπιά
     div.innerHTML = `
-        <div class="media-actions mb-2 d-flex justify-content-between">
-            <button class="btn btn-xs btn-outline-primary edit-media" data-id="${media.id}"><i class="bi bi-pencil"></i></button>
-            <button class="btn btn-xs btn-outline-danger delete-media" data-id="${media.id}"><i class="bi bi-trash"></i></button>
-        </div>
+        ${actionsHtml}
         ${lockHtml}
         <div class="media-body-sync">
             ${contentHtml}
             <p class="small mt-2 mb-1 fw-bold sync-media-title text-truncate">${displayName}</p>
-            
-            // Μέσα στην createMediaElement
-<div class="sync-media-comments mt-2 p-2 border-top bg-light rounded" style="font-size: 0.8rem;">
-    <i class="bi bi-chat-dots"></i> 
-    <span class="comment-text">${media.comment || 'Χωρίς σχόλια'}</span>
-</div>
+            <div class="sync-media-comments mt-2 p-2 border-top bg-light rounded" style="font-size: 0.8rem;">
+                <i class="bi bi-chat-dots"></i> 
+                <span class="comment-text">${media.comment || 'Χωρίς σχόλια'}</span>
+            </div>
+        </div>
         ${!isYouTube ? `<a href="/noteapp/api/canva/download.php?id=${media.id}" class="btn btn-xs btn-outline-dark w-100 mt-2">Λήψη αρχείου</a>` : ''}
     `;
+    
     return div;
 }
-
-
     // DRAG & DROP
     initDraggableMedia() {
         if (typeof interact === 'undefined') return;
+        // ΕΛΕΓΧΟΣ: Αν το can-edit είναι false, μην κάνεις τίποτα
+    const canEditMeta = document.querySelector('meta[name="can-edit"]');
+    if (canEditMeta && canEditMeta.content !== 'true') {
+        return; 
+    }
 
         interact('.draggable').draggable({
             inertia: true,
@@ -1968,6 +1831,11 @@ createMediaElement(media) {
 
     initDraggableForElement(element) {
         if (typeof interact === 'undefined') return;
+        // ΕΛΕΓΧΟΣ: Αν το can-edit είναι false, μην κάνεις τίποτα
+    const canEditMeta = document.querySelector('meta[name="can-edit"]');
+    if (canEditMeta && canEditMeta.content !== 'true') {
+        return; 
+    }
 
         interact(element).draggable({
             inertia: true,
