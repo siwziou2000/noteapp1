@@ -16,76 +16,66 @@ if(!isset($_SESSION['user_id']) && !isset($_GET['token'])){
 }
 //vasikes metavolites gia to systima mas
 $user_id = (int)$_SESSION['user_id'];
-$canva_id = isset ($_GET['id']) ? (int)$_GET['id'] : null;
+$canva_id = isset($_GET['id']) ? (int)$_GET['id'] : null;
 $group_id = isset($_GET['group_id']) ? (int)$_GET['group_id'] : null;
 
 /// token gia tin koinopiisi toy pinaka
 $share_token = isset($_GET['token']) ? $_GET['token'] : null;
 
 //veltiomeneoo elexgos prossanis gia to pinaka toy sistimatos
-
 try {
-    //an exotme token alal oxi to id vriskotomy to id kai apo to token
-    if(!$canva_id && $share_token) {
+    if (!$canva_id && $share_token) {
         $stmtId = $pdo->prepare("SELECT canva_id FROM canvases WHERE share_token = ?");
         $stmtId->execute([$share_token]);
         $res = $stmtId->fetch();
         if ($res) $canva_id = $res['canva_id'];
     }
-    if(!$canva_id){
-        die("ο πινακας δεν βρεθηκε.");
 
+    if (!$canva_id && isset($_SESSION['last_canva_id'])) {
+        $canva_id = $_SESSION['last_canva_id'];
     }
 
-    //to rolo toy xristi kai to admin exei prostasi apo exo sto systima kai to xristi apo ti vasi omos
+    if (!$canva_id) {
+        die("Ο πίνακας δεν βρέθηκε. Παρακαλώ επιστρέψτε στο <a href='dashboard.php'>Dashboard</a>.");
+    }
+
+    // Αποθήκευση για το επόμενο request
+    $_SESSION['last_canva_id'] = $canva_id;
+
+    // 4. ΕΛΕΓΧΟΣ ΠΡΟΣΒΑΣΗΣ & ACCESS LEVEL
     $stmtUserRole = $pdo->prepare("SELECT role FROM users WHERE user_id = ?");
     $stmtUserRole->execute([$user_id]);
-    $CurrentUserRole = $stmtUserRole->fetchColumn();
+    $currentUserRole = $stmtUserRole->fetchColumn();
 
     $stmtCheck = $pdo->prepare("
-       SELECT c.*,
-              CASE
-                  WHEN ? = 'admin' THEN 'owner' 
-                  WHEN c.owner_id = ? THEN 'owner'
-                  WHEN cc.user_id = ? THEN 'collaborator'
-                  WHEN gm.user_id IS NOT NULL THEN 'group_member'
-                  WHEN c.share_token = ? AND c.access_type = 'shared' THEN 'public_viewer'
-                  WHEN c.access_type IN ('public','δημοσιο') THEN 'public_viewer'
-                  ELSE 'no_access'
-              END as access_level,
-              gm.role as group_role
+        SELECT c.*,
+               CASE
+                   WHEN ? = 'admin' THEN 'owner' 
+                   WHEN c.owner_id = ? THEN 'owner'
+                   WHEN cc.permission = 'edit' AND cc.status = 'accepted' THEN 'editor'
+                   WHEN cc.permission = 'view' AND cc.status = 'accepted' THEN 'viewer'
+                   WHEN c.access_type IN ('public','δημοσιο') THEN 'public_viewer'
+                   ELSE 'no_access'
+               END as access_level
         FROM canvases c 
-        LEFT JOIN canvas_collaborators  cc ON c.canva_id = cc.canva_id AND cc.user_id = ?
-        LEFT JOIN  group_members gm ON c.copy_from_group_id = gm.group_id AND gm.user_id = ?
-        WHERE c.canva_id  = ?
+        LEFT JOIN canvas_collaborators cc ON c.canva_id = cc.canva_id AND cc.user_id = ?
+        WHERE c.canva_id = ?
     ");
-
-    //    // ΠΡΟΣΟΧΗ: Προσθέσαμε μία παράμετρο στην αρχή ($currentUserRole)
-
-    $stmtCheck->execute([
-        $currentUserRole,
-        $user_id,
-        $share_token,
-        $user_id,
-        $user_id,
-        $canva_id
-    ]);
-    //
+    $stmtCheck->execute([$currentUserRole, $user_id, $user_id, $canva_id]);
     $access = $stmtCheck->fetch();
 
     if(!$access || $access['access_level'] === 'no_access'){
-        die("δεν εχετε δικαιωμα προσβσης σε αυτον τον πινακα.");
+        die("Δεν έχετε δικαίωμα πρόσβασης.");
     }
-    //epipedo prostasis
-    $access_level = $access['access_level'];
 
-    //an xristi mporei na epjergastei an einia owner ,collaboratoe
-    //kai na einia exei rolo admin h editor
-    $can_edit = in_array($access_level,['owner','collaborator']) || ($access_level === 'group_member' && in_array($access['group_role'],['admin','editor']));
+    $access_level = $access['access_level'];
+    $can_edit = in_array($access_level, ['owner', 'editor']);
+
 } catch(PDOException $e) {
     die("σφαλμα βασης δεδομενων: " . $e->getMessage());
 }
-
+// Κρίσιμη μεταβλητή για το UI και το Backend
+    $can_edit = in_array($access['access_level'], ['owner', 'editor']);
 //anaktisi onomatos kamva
 $canvas_name = 'νεος καμβας';
 $access_type = 'private';
@@ -190,6 +180,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
         die(json_encode(['error' => 'Μη έγκυρο αίτημα!']));
     }
+    if (!$can_edit) {
+            die(json_encode(['error' => 'Δεν έχετε δικαίωμα επεξεργασίας.']));
+        }
     
     try {
         $action = filter_input(INPUT_POST, 'action', FILTER_SANITIZE_STRING) ?? '';
@@ -452,6 +445,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="user-role" content="<?php echo $_SESSION['role'] ?? 'student'; ?>">
     <meta name="current-canva-id" content="<?php echo $canva_id; ?>">
     <meta name="csrf-token" content="<?php echo $_SESSION['csrf_token']; ?>">
+    <meta name="can-edit" content="<?php echo $can_edit ? 'true' : 'false'; ?>">
     <title><?php echo htmlspecialchars($canvas_name); ?> - Έξυπνες Σημειώσεις</title>
     
     <!-- Bootstrap CSS -->
@@ -801,7 +795,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="header-content">
                 <div class="header-title">
                     <h1>Σημειώσεις Πινακα <span class="text-muted mb-0"><?php echo htmlspecialchars($canvas_name); ?></span>
-   
+   <?php 
+        // Έλεγχος αν είναι Viewer (δεν είναι ούτε owner ούτε collaborator με edit rights)
+        // Προσαρμοσε το logic ανάλογα με το πώς ορίζεις τον viewer στη βάση σου
+        $isViewer = ($access_level === 'viewer' || $access_level === 'read_only');
+        $isOwner = ($access_level === 'ownwer'); // Προσοχή στο typo 'ownwer' αν υπάρχει όντως στη βάση σου έτσι
+        ?>
+
+        <?php if ($isViewer): ?>
+            <span class="text-warning ms-2" title="Μόνο προβολή (Read-only)" style="font-size: 0.7em;">
+                <i class="bi bi-lock-fill"></i> Προβολη μονο
+            </span>
+            
+        <?php endif; ?>
         <?php
         //elegxs an einia owneri collaboratoe apo to accesslevel 
         $isOwner = ($access_level === 'ownwer');
@@ -941,16 +947,21 @@ function updateAccessBadge(type) {
                     </label>
                     <span class="theme-label" id="themeLabel">Light mode</span>
 
-                    <button type="button" class="btn btn-primary d-flex align-items-center" data-bs-toggle="modal" data-bs-target="#mediaModal">
-                        <img src="images/photo.png" alt="Media preview" class="img-thumbnail" style="width: 40px; height: 40px;">
-                        Εισαγωγή πολυμέσου
-                    </button>
-                    <button class="btn btn-info btn-large" data-bs-toggle="modal" data-bs-target="#newCanvasModal"> 
-                            <i class="bi bi-plus-lg fs-4"></i> Νέος Πίνακας</button>
-                    <a href="include/drawingcannvas.php" class="btn btn-info btn-large">
-                        <i class="bi bi-brush-fill"></i> Πίνακας ζωγραφικης
+                   <?php if ($can_edit): ?>
+        <button type="button" class="btn btn-primary d-flex align-items-center" data-bs-toggle="modal" data-bs-target="#mediaModal">
+            <img src="images/photo.png" alt="Media preview" class="img-thumbnail" style="width: 40px; height: 40px;">
+            Εισαγωγή πολυμέσου
+        </button>
 
-                    </a>
+        <a href="include/drawingcanvas.php" class="btn btn-info btn-large">
+            <i class="bi bi-brush-fill"></i> Πίνακας ζωγραφικής
+        </a>
+    <?php endif; ?>
+
+    <button class="btn btn-info btn-large" data-bs-toggle="modal" data-bs-target="#newCanvasModal"> 
+        <i class="bi bi-plus-lg fs-4"></i> Νέος Πίνακας
+    </button>
+    
         </div>
         </div>
         </header>
@@ -1245,6 +1256,7 @@ async function updateTokenAccess() {
                                             <span class="badge bg-dark"><?php echo htmlspecialchars($note['tag']); ?></span>
                                         <?php endif; ?>
                                     </div>
+                                    <?php if($can_edit):?>
                                     <div class="btn-group">
                                         <button class="btn btn-sm btn-light edit-btn">
                                             <i class="bi bi-pencil-square"></i>
@@ -1253,6 +1265,7 @@ async function updateTokenAccess() {
                                         <button class="btn btn-sm btn-danger delete-btn">
                                             <i class="bi bi-trash"></i>
                                         </button>
+                                         <?php endif; ?>
                                     </div>
                                 </div>
                                 
@@ -1271,114 +1284,8 @@ async function updateTokenAccess() {
                                 <?php endif; ?>
                             </div>
                         </div>
-                    <?php endforeach; ?><?php foreach ($media as $m): ?>
-    <?php
-    // 1. Καθορισμός Ονόματος και Path
-    $displayName = !empty($m['original_filename']) ? $m['original_filename'] : basename($m['data']);
-    $rawPath = $m['data'];
-    
-    // Έξυπνη διαχείριση του path για να μην χάνονται τα αρχεία
-    if (strpos($rawPath, 'http') === 0) {
-        $filePath = $rawPath; // YouTube ή εξωτερικό URL
-    } elseif (strpos($rawPath, '/noteapp') === 0) {
-        $filePath = $rawPath; // Ήδη πλήρες path
-    } else {
-        $filePath = '/noteapp/api/canva/' . $rawPath; // Παλιό format
-    }
-    // ΛΟΓΙΚΗ ΚΛΕΙΔΩΜΑΤΟΣ
-    $isLocked = !empty($m['locked_by']); 
-    
-    
-
-    // Έλεγχος τύπων
-    $isYouTube = (strpos($rawPath, 'youtube.com') !== false || strpos($rawPath, 'youtu.be') !== false);
-    $isImage = (strpos($m['type'], 'image') !== false);
-    $isVideo = ($m['type'] === 'video');
-    ?>
-
-    <div class="draggable media-item"
-         data-id="<?= htmlspecialchars($m['id']) ?>"
-         style="position: absolute;
-                left: <?= (int)($m['position_x'] ?? 0) ?>px;
-                top: <?= (int)($m['position_y'] ?? 0) ?>px;
-                width: 250px;
-                border: 1px solid #ddd;
-                border-radius: 8px;
-                background: white;
-                padding: 10px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                cursor: move;
-                z-index: 100;">
-                <?php if (!empty($m['locked_by'])): ?>
-            <div class="lock-indicator" style="position: absolute; top: -12px; right: 5px; background: #ffc107; padding: 2px 5px; border-radius: 2px; font-size: 13px; font-weight: bold; z-index: 110; color: <?= ($m['locked_by'] == 1) ? '#ff0000' : '#0000ff'; ?>;">
-                🔒 <?= htmlspecialchars($m['locked_by_name'] ?? 'Κλειδωμένο'); ?>
-            </div>
-        <?php endif; ?>
-
-        <div class="media-actions mb-2 d-flex justify-content-between">
-            <button class="btn btn-sm btn-outline-primary edit-media" data-id="<?= $m['id'] ?>">
-                <i class="bi bi-pencil"></i>
-            </button>
-            <button class="btn btn-sm btn-outline-danger delete-media" data-id="<?= $m['id'] ?>">
-                <i class="bi bi-trash"></i>
-            </button> 
-        </div>
-
-        <div class="media-content-wrapper">
-            <?php if ($isImage): ?>
-                <img src="<?= $filePath ?>" class="img-fluid rounded border" alt="image" />
-                <div class="mt-2 text-center">
-                    <small class="text-truncate d-block"><?= htmlspecialchars($displayName) ?></small>
-                </div>
-
-          <?php elseif ($isYouTube): ?>
-            <div class="ratio ratio-16x9">
-                <?php
-                preg_match('/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/', $rawPath, $matches);
-                $videoId = $matches[1] ?? '';
-                ?>
-                <iframe src="https://www.youtube.com/embed/<?= $videoId ?>" frameborder="0" allowfullscreen></iframe>
-            </div>
-            <a href="<?= htmlspecialchars($rawPath) ?>" target="_blank" class="btn btn-sm btn-danger w-100 mt-2">
-                <i class="bi bi-youtube"></i> Προβολή στο YouTube
-            </a>
-            <?php elseif ($isVideo): ?>
-                <video controls class="w-100 rounded border">
-                    <source src="<?= $filePath ?>">
-                </video>
-                <small class="text-truncate d-block mt-1"><?= htmlspecialchars($displayName) ?></small>
-
-            <?php else: ?>
-                <div class="file-display p-3 bg-light border rounded text-center">
-                    <?php 
-                        // Επιλογή εικονιδίου ανάλογα με την κατάληξη
-                        $ext = strtolower(pathinfo($displayName, PATHINFO_EXTENSION));
-                        $icon = 'bi-file-earmark-text'; // default
-                        if ($ext == 'pdf') $icon = 'bi-file-earmark-pdf text-danger';
-                        if (in_array($ext, ['doc', 'docx'])) $icon = 'bi-file-earmark-word text-primary';
-                        if (in_array($ext, ['xls', 'xlsx'])) $icon = 'bi-file-earmark-excel text-success';
-                    ?>
-                    <i class="bi <?= $icon ?>" style="font-size: 2.5rem;"></i>
-                    <p class="small text-truncate mt-2 mb-1 fw-bold"><?= htmlspecialchars($displayName) ?></p>
-                    <span class="badge bg-secondary mb-2"><?= strtoupper($ext) ?></span>
-                </div>
-            <?php endif; ?>
-        </div>
-
-        <?php if (!$isYouTube): ?>
-            <a href="/noteapp/api/canva/download.php?id=<?= $m['id'] ?>" class="btn btn-xs btn-outline-dark w-100 mt-2">
-                <i class="bi bi-download"></i> Λήψη αρχείου
-            </a>
-        <?php endif; ?>
-
-        <?php if (!empty($m['comment'])): ?>
-            <div class="media-comment mt-2 p-2 bg-light border-start border-primary small" style="font-style: italic;">
-                <?= htmlspecialchars($m['comment']) ?>
-            </div>
-        <?php endif; ?>
-    </div>
-
-<?php endforeach; ?>
+                    <?php endforeach; ?>
+                    
                   
         <!-- Mobile Sidebar Toggle -->
         <button class="sidebar-toggle" id="sidebarToggle">
@@ -2000,29 +1907,7 @@ async function updateTokenAccess() {
    
 
 <script>
-
-
-
-const toggle = document.getElementById('darkModeToggle');
-const label = document.getElementById('themeLabel');
-
-function updateTheme(isDark) {
-    document.body.classList.toggle('dark', isDark);
-    label.textContent = isDark ? 'Dark mode' : 'Light mode';
-    localStorage.setItem('darkMode', isDark);
-}
-
-toggle.addEventListener('change', () => {
-    updateTheme(toggle.checked);
-});
-
-// restore
-if (localStorage.getItem('darkMode') === 'true') {
-    toggle.checked = true;
-    updateTheme(true);
-}
-
-    // Toggle sidebar mobile
+     // Toggle sidebar mobile
 document.getElementById('sidebarToggle').addEventListener('click', function() {
     document.getElementById('sidebar').classList.toggle('open');
 });
@@ -2046,6 +1931,8 @@ document.querySelectorAll('.mobile-toggle-menu li').forEach(item => {
     });
 });
 </script>
+
+
 
 <script>
     
@@ -2101,35 +1988,3 @@ document.querySelectorAll('.mobile-toggle-menu li').forEach(item => {
 
     </body>
 </html>
-
-
-         
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-}
-
-
-
-
-?>
